@@ -13,7 +13,6 @@ __pycache__/
 # 로그/결과 파일
 *.log
 *.out
-*.txt
 
 # Jupyter 체크포인트
 .ipynb_checkpoints/
