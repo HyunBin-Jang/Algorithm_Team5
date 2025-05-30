@@ -1,0 +1,22 @@
+# 가상환경
+venv/
+
+# Python 캐시
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# VSCode 설정
+.vscode/
+
+# 로그/결과 파일
+*.log
+*.out
+
+# Jupyter 체크포인트
+.ipynb_checkpoints/
+
+# OS 시스템 파일
+.DS_Store
+Thumbs.db
