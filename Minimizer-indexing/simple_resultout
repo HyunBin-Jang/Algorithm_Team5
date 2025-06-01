@@ -1,0 +1,85 @@
+import random
+import sys
+
+def load_reference(filename="reference_10K.txt"):
+    with open(filename, "r") as f:
+        return f.read().strip()
+
+def load_reads(filename="mammoth_reads_10K.txt"):
+    with open(filename, "r") as f:
+        return [line.strip() for line in f]
+
+def load_truth(filename="ground_truth_10K.txt"):
+    with open(filename, "r") as f:
+        return [int(line.strip()) for line in f]
+
+def build_minimizer_index(reference, k=20, w=8, max_occ=500):
+    index = {}
+    num_kmers = len(reference) - k + 1
+    for i in range(num_kmers - w + 1):
+        window_kmers = [reference[j:j + k] for j in range(i, i + w)]
+        mn = min(window_kmers)
+        mn_pos = i + window_kmers.index(mn)
+        index.setdefault(mn, []).append(mn_pos)
+    filtered = {m: poses for m, poses in index.items() if len(poses) <= max_occ}
+    return filtered
+
+def minimizer_match(reference, index, read, k=20, w=8, max_mismatch=2, seed_min=2):
+    read_kmers = [read[i:i + k] for i in range(len(read) - k + 1)]
+    read_min_pairs = []
+    for i in range(len(read_kmers) - w + 1):
+        window = read_kmers[i:i + w]
+        mn = min(window)
+        mn_idx_in_window = window.index(mn)
+        read_pos = i + mn_idx_in_window
+        read_min_pairs.append((mn, read_pos))
+    delta_counts = {}
+    for (mn, rpos) in read_min_pairs:
+        if mn not in index:
+            continue
+        for refpos in index[mn]:
+            delta = refpos - rpos
+            delta_counts[delta] = delta_counts.get(delta, 0) + 1
+    candidates = [d for d, cnt in delta_counts.items() if cnt >= seed_min]
+    best_pos, best_mm = -1, max_mismatch + 1
+    for delta in candidates:
+        if delta < 0 or delta + len(read) > len(reference):
+            continue
+        window_seq = reference[delta : delta + len(read)]
+        mismatches = sum(1 for a, b in zip(read, window_seq) if a != b)
+        if mismatches <= max_mismatch and mismatches < best_mm:
+            best_mm = mismatches
+            best_pos = delta
+    return best_pos, best_mm
+
+if __name__ == "__main__":
+    reference_seq = load_reference("reference_10K.txt")
+    reads = load_reads("mammoth_reads_10K.txt")
+    truth_positions = load_truth("ground_truth_10K.txt")
+
+    K = 20
+    W = 8
+    MAX_OCC = 500
+    index = build_minimizer_index(reference_seq, k=K, w=W, max_occ=MAX_OCC)
+    print(f"> Built minimizer index (k={K}, w={W}, max_occ={MAX_OCC}) with {len(index)} keys")
+
+    MAX_MM = 2
+    SEED_MIN = 2
+
+    correct = 0
+    for i, read in enumerate(reads):
+        true_pos = truth_positions[i]
+        pred_pos, mm = minimizer_match(reference_seq, index, read, k=K, w=W, max_mismatch=MAX_MM, seed_min=SEED_MIN)
+        if pred_pos == true_pos:
+            correct += 1
+
+    accuracy = correct / len(reads) * 100
+    print(f"\n>> Reconstruction accuracy (≤{MAX_MM} mismatches): {accuracy:.2f}%")
+
+    with open("mapping_results.txt", "w") as outf:
+        outf.write("read_id\ttrue_pos\tpred_pos\tmismatch\n")
+        for idx, read in enumerate(reads):
+            tp = truth_positions[idx]
+            pp, mm = minimizer_match(reference_seq, index, read, k=K, w=W, max_mismatch=MAX_MM, seed_min=SEED_MIN)
+            outf.write(f"read_{idx}\t{tp}\t{pp}\t{mm}\n")
+    print("> Mapping results saved to mapping_results.txt")
