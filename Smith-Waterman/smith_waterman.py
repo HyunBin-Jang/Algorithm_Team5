@@ -1,3 +1,5 @@
+import time
+
 def smith_waterman(seq1, seq2, match_score=2, mismatch_penalty=-1, gap_penalty=-2):
     m, n = len(seq1), len(seq2)
 
@@ -28,35 +30,44 @@ def smith_waterman(seq1, seq2, match_score=2, mismatch_penalty=-1, gap_penalty=-
 
     return max_score, max_pos
 
-
-def seed_and_extend(reference, read, seed_len=10):
-    seed = read[:seed_len]
-    positions = []
-
-    # reference에서 seed와 일치하는 위치 찾기
-    for i in range(len(reference) - seed_len + 1):
-        if reference[i:i + seed_len] == seed:
-            positions.append(i)
+def seed_and_extend(reference, read, kmer_index, seed_len=10):
+    L = len(read)
+    start_idx = L // 2 - seed_len // 2
+    seed = read[start_idx:start_idx + seed_len]
+    positions = kmer_index.get(seed, [])
 
     best_score = -1
     best_pos = -1
 
     for pos in positions:
-        # read보다 조금 더 긴 구간을 비교 대상으로 설정
-        window = reference[pos : pos + len(read) + 20]
+        window = reference[pos - start_idx : pos - start_idx  + len(read)]
         score, _ = smith_waterman(read, window)
-
         if score > best_score:
             best_score = score
-            best_pos = pos
+            best_pos = pos - start_idx
 
     return best_pos, best_score
 
-def evaluate_accuracy(true_positions, predicted_positions, tolerance=5):
+def build_kmer_index(reference, k):
+    """
+    reference 문자열에서 k-mer 인덱스를 딕셔너리 형태로 생성
+    key: k-mer 문자열
+    value: [등장 위치 인덱스 리스트]
+    """
+    index = {}
+    for i in range(len(reference) - k + 1):
+        kmer = reference[i:i + k]
+        if kmer in index:
+            index[kmer].append(i)
+        else:
+            index[kmer] = [i]
+    return index
+
+def evaluate_accuracy(true_positions, predicted_positions):
     correct = 0
     total = min(len(true_positions), len(predicted_positions))
     for i in range(total):
-        if abs(true_positions[i] - predicted_positions[i]) <= tolerance:
+        if true_positions[i] - predicted_positions[i]:
             correct += 1
     accuracy = (correct / total) * 100
     return accuracy, correct, total
@@ -79,11 +90,17 @@ reads = load_reads("mammoth_reads_10K.txt")
 true_positions = load_ground_truth("ground_truth_10K.txt")
 
 # 2. 매칭
+start_time = time.time()   # 매칭 시작 시간 기록
+k = 10
+kmer_index = build_kmer_index(reference, k)
 predicted_positions = []
 for i in range(1000):
-    pred_pos, _ = seed_and_extend(reference, reads[i])
+    pred_pos, _ = seed_and_extend(reference, reads[i], kmer_index, seed_len=k)
     predicted_positions.append(pred_pos)
+end_time = time.time()  #매칭 종료 시간 기록
+elapsed_time = end_time - start_time
+print(f"Total Matching Time : {elapsed_time:.2f} seconds")
 
 # 3. 정확도 평가
-accuracy, correct, total = evaluate_accuracy(true_positions[:100], predicted_positions)
-print(f"\n✅ Accuracy: {accuracy:.2f}% ({correct}/{total} matched within ±5bp)")
+accuracy, correct, total = evaluate_accuracy(true_positions, predicted_positions)
+print(f"\n Accuracy: {accuracy:.2f}% ({correct}/{total} matched within ±2bp)")
