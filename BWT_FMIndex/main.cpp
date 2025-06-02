@@ -166,9 +166,9 @@ int main() {
 	auto start = chrono::high_resolution_clock::now();
 
 	// 파일 읽기
-	string ref = readReference("reference_1M.txt");
-	vector<string> patterns = readPatterns("mammoth_reads_10K.txt");
-	vector<int> ground_truth = readGroundTruth("ground_truth_10K.txt");
+	string ref = readReference("reference_10K.txt");
+	vector<string> patterns = readPatterns("mammoth_reads_100.txt");
+	vector<int> ground_truth = readGroundTruth("ground_truth_100.txt");
 
 	// FM-Index 생성
 	FMIndex fm(ref);
@@ -201,11 +201,11 @@ int main() {
 		out << output << endl;
 	}
 	out << "Accuracy: " << (double)correct / patterns.size() * 100 << "%" << endl;
-	out.close();
-
 	
 	auto duration = chrono::duration_cast<chrono::milliseconds>(end - start);
 	cout << "Execution time: " << duration.count() << " ms" << endl;
+	out << "Execution time: " << duration.count() << " ms" << endl;
 
+	out.close();
 	return 0;
 }
