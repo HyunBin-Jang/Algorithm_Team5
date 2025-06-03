@@ -6,12 +6,14 @@
 
 ---
 
+```bash
 ## 📁 프로젝트 구조
 Algorithm_Team5/
 ├── BWT-FMIndex/
 ├── genome_generation/
 ├── .gitignore
 ├── README.md
+```
 
 ---
 
