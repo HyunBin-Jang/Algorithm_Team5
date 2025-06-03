@@ -181,13 +181,33 @@ vector<int> readGroundTruth(const string& filename) {
 	return truth;
 }
 
+string formatDuration(chrono::milliseconds ms) {
+	using namespace std::chrono;
+
+	auto total_seconds = duration_cast<seconds>(ms).count();
+	int hours = total_seconds / 3600;
+	int minutes = (total_seconds % 3600) / 60;
+	int seconds = total_seconds % 60;
+
+	std::string result;
+	if (hours > 0) {
+		result += std::to_string(hours) + "시간 ";
+	}
+	result += std::to_string(minutes) + "분 ";
+	result += std::to_string(seconds) + "초";
+
+	return result;
+}
+
 void FMIndexBWT(const string referenceSize, const string patternSize) {
+	cout << "===============================" << endl;
+	cout << "Reference Size: " << referenceSize << ", Number of patterns : " << patternSize << endl;
 	auto start = chrono::high_resolution_clock::now();
 
 	// 파일 읽기
 	string ref = readReference("reference_" + referenceSize + ".txt");
-	vector<string> patterns = readPatterns("mammoth_reads_" + patternSize + ".txt");
-	vector<int> ground_truth = readGroundTruth("ground_truth_" + patternSize + ".txt");
+	vector<string> patterns = readPatterns("short_reads/mammoth_reads_" + referenceSize + "_" + patternSize + ".txt");
+	vector<int> ground_truth = readGroundTruth("ground_truth/ground_truth_" + referenceSize + "_" + patternSize + ".txt");
 
 	// FM-Index 생성
 	FMIndex fm(ref);
@@ -196,8 +216,8 @@ void FMIndexBWT(const string referenceSize, const string patternSize) {
 	int k = 2; // 필요시 조정 가능
 
 	// 결과 출력 파일
-	vector<string> outputs;
-	ofstream out("results_ref(" + referenceSize + ")_pattern(" + patternSize + ")" + ".txt");
+	/*vector<string> outputs;
+	ofstream out("results_" + referenceSize + "_" + patternSize + ".txt");*/
 
 	// 패턴 검색 및 검증
 	int correct = 0;
@@ -216,26 +236,27 @@ void FMIndexBWT(const string referenceSize, const string patternSize) {
 			}
 		}
 		if (found) correct++;
-		outputs.push_back(("Pattern " + to_string(i + 1) + ": " + (found ? "Match at " + to_string(ground_truth[i]) : "No match")));
+		//outputs.push_back(("Pattern " + to_string(i + 1) + ": " + (found ? "Match at " + to_string(ground_truth[i]) : "No match")));
 	}
 	auto end = chrono::high_resolution_clock::now();
 
-	for (const string& output : outputs) {
+	/*for (const string& output : outputs) {
 		out << output << endl;
-	}
+	}*/
 	cout << "Accuracy: " << (double)correct / patterns.size() * 100 << "%" << endl;
 
 	auto duration = chrono::duration_cast<chrono::milliseconds>(end - start);
-	cout << "Execution time: " << duration.count() << " ms" << endl;
+	string executionTime = formatDuration(duration);
+	cout << "Execution time: " << executionTime << endl;
 
-	out.close();
+	//out.close();
 }
 
 int main()
 {
-	string references[] = { "1M", "10M", "100M", "1B" };
+	string references[] = { "1M", "10M", "100M" };
 	string patterns[] = { "10K", "100K", "1M", "10M" };
-	for (int i = 0; i < 4; i++) {
+	for (int i = 0; i < 3; i++) {
 		for (int j = 0; j < 4; j++) {
 			FMIndexBWT(references[i], patterns[j]);
 		}
