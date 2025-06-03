@@ -20,7 +20,7 @@ Algorithm_Team5/
 | 알고리즘 | 설명 | 브랜치 이름 |
 |----------|------|--------------|
 | Myers' Bit-parallel Edit Distance | 비트 연산 기반의 빠른 근사 문자열 매칭 | `feat/myers-algorithm` |
-| FM Index | 접미사 기반 BWT 생성 방식을 이용한 FMIndex 방식 | `feat/myers-algorithm` |
+| FM Index | 접미사 기반 BWT 생성 방식을 이용한 FMIndex 방식 | `feat/bwt` |
 | Brute-force Matching | 모든 위치를 순차 비교하는 기본 매칭 방식 | `main` or `brute-force` |
 | (추가 알고리즘) | ... | ... |
 
