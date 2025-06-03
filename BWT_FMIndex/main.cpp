@@ -21,13 +21,14 @@ vector<int> buildSuffixArray(const string& s) {
 
 	for (int i = 0; i < n; i++) {
 		sa[i] = i; // [0,1,2,3,4,5,6]
-		rank[i] = s[i]; // [98, 97, 110, 97, 110, 97, 36] = [b, a, n, a, n, a, $]
+		rank[i] = s[i]; // rank = [66, 65, 78, 65, 78, 65, 36] BANANA$
 	}
 
-	for (int k = 1; k < n; k *= 2) {
+	for (int k = 1; k < n; k *= 2) { // 접미사의 왼쪽 끝부터 2k글자씩 비교
 		auto cmp = [&](int i, int j) {
+			// 앞 글자가 다르면 그 순위로 비교
 			if (rank[i] != rank[j]) return rank[i] < rank[j];
-			// 그 다음 글자끼리 비교
+			// 앞 글자가 같으면 다음 k글자 비교
 			int ri = i + k < n ? rank[i + k] : -1;
 			int rj = j + k < n ? rank[j + k] : -1;
 			return ri < rj;
@@ -62,13 +63,16 @@ class FMIndex {
 private:
 	string bwt;
 	vector<int> sa;
-	map<char, int> first;
-	vector<map<char, int>> occ;
+	map<char, int> first; // ACGT가 원래 텍스트의 접미사들을 정렬한 것의 첫 열에서 처음 나타나는 위치. LF 매핑할 때 시작점으로 사용됨
+	vector<map<char, int>> occ; // BWT의 각 위치에서 ACGT의 누적 개수. occ[i][c]는 BWT[0:i]에서 c가 나타난 횟수
 
 public:
-	FMIndex(const string& ref) {
+	FMIndex(const string& ref) { // ref : reference sequence
 		sa = buildSuffixArray(ref + '$');
+		//for (int i = 0; i < sa.size(); i++)
+		//	cout << "Suffix Array[" << i << "]: " << sa[i] << endl; // 디버깅용 출력
 		bwt = buildBWT(ref + '$', sa);
+		//cout << "BWT: " << bwt << endl; // 디버깅용 출력
 
 		map<char, int> char_count;
 		for (char c : bwt) char_count[c]++;
@@ -77,6 +81,8 @@ public:
 			first[p.first] = sum;
 			sum += p.second;
 		}
+		//for (auto& p : first)
+		//	cout << "First[" << p.first << "]: " << p.second << endl; // 디버깅용 출력
 
 		occ.resize(bwt.length());
 		map<char, int> running_count;
@@ -84,21 +90,34 @@ public:
 			running_count[bwt[i]]++;
 			occ[i] = running_count;
 		}
+		//for (size_t i = 0; i < occ.size(); i++) {
+		//	cout << "occ[" << i << "]: ";
+		//	for (const auto& p : occ[i]) {
+		//		cout << p.first << ":" << p.second << " ";
+		//	}
+		//	cout << endl; // 디버깅용 출력
+		//}
 	}
 
-	// 정확한 매칭을 위한 범위 계산
-	bool getRange(char c, int& top, int& bottom) {
-		if (first.find(c) == first.end()) return false;
-		top = first[c] + (top > 0 ? occ[top - 1][c] : 0);
+	// 정확한 매칭을 위한 범위 계산. 패턴의 한 문자를 처리하여 BWT에서 해당 문자의 범위를 반환
+	bool getRange(char c, int& top, int& bottom) { // 현재 BWT에서 검색 범위 : top ~ bottom
+		if (first.find(c) == first.end()) return false; // c가 BWT에 없으면 false 반환
+		top = first[c] + (top > 0 ? occ[top - 1][c] : 0); // c의 첫 번째 위치에 top 이전 까지의 c 등장 횟수 더하기
 		bottom = first[c] + occ[bottom][c] - 1;
 		return top <= bottom;
 	}
 
-	// 근사 매칭 (최대 k개의 mismatch 허용)
+	// 패턴을 뒤에서부터 처리. 최대 k개의 mismatch를 허용하여 매칭 위치를 찾음.
 	void approxSearch(const string& pattern, int k, int pos, int top, int bottom, vector<int>& results) {
-		if (pos < 0) {
+		/* pattern: 검색할 패턴.
+		 * k: 허용할 최대 mismatch 수.
+		 * pos: 현재 처리 중인 패턴의 인덱스(뒤에서부터 처리).
+		 * top, bottom: 현재 BWT에서의 검색 범위.
+		 * results: 매칭된 위치를 저장할 벡터. */
+
+		if (pos < 0) { // 패턴을 모두 처리한 경우.
 			for (int i = top; i <= bottom; i++) {
-				if (sa[i] < pattern.length()) continue; // '$' 제외
+				if (sa[i] == pattern.length()) continue; // '$' 제외
 				results.push_back(sa[i]);
 			}
 			return;
@@ -112,7 +131,7 @@ public:
 
 		// k가 남아있으면 mismatch 시도
 		if (k > 0) {
-			for (char c : {'A', 'C', 'G', 'T'}) { // DNA 서열 가정
+			for (char c : {'A', 'C', 'G', 'T'}) {
 				if (c == pattern[pos]) continue;
 				new_top = top;
 				new_bottom = bottom;
@@ -162,13 +181,13 @@ vector<int> readGroundTruth(const string& filename) {
 	return truth;
 }
 
-int main() {
+void FMIndexBWT(const string referenceSize, const string patternSize) {
 	auto start = chrono::high_resolution_clock::now();
 
 	// 파일 읽기
-	string ref = readReference("reference_10K.txt");
-	vector<string> patterns = readPatterns("mammoth_reads_100.txt");
-	vector<int> ground_truth = readGroundTruth("ground_truth_100.txt");
+	string ref = readReference("reference_" + referenceSize + ".txt");
+	vector<string> patterns = readPatterns("mammoth_reads_" + patternSize + ".txt");
+	vector<int> ground_truth = readGroundTruth("ground_truth_" + patternSize + ".txt");
 
 	// FM-Index 생성
 	FMIndex fm(ref);
@@ -178,12 +197,17 @@ int main() {
 
 	// 결과 출력 파일
 	vector<string> outputs;
-	ofstream out("approx_search_results.txt");
+	ofstream out("results_ref(" + referenceSize + ")_pattern(" + patternSize + ")" + ".txt");
 
 	// 패턴 검색 및 검증
 	int correct = 0;
 	for (size_t i = 0; i < patterns.size(); i++) {
 		vector<int> positions = fm.searchWithMismatch(patterns[i], k);
+
+		/*for (int i = 0; i < positions.size(); i++)
+			cout << positions[i] << " ";
+		cout << endl;*/
+
 		bool found = false;
 		for (int pos : positions) {
 			if (pos == ground_truth[i]) {
@@ -196,16 +220,25 @@ int main() {
 	}
 	auto end = chrono::high_resolution_clock::now();
 
-	cout << "Accuracy: " << (double)correct / patterns.size() * 100 << "%" << endl;
 	for (const string& output : outputs) {
 		out << output << endl;
 	}
-	out << "Accuracy: " << (double)correct / patterns.size() * 100 << "%" << endl;
-	
+	cout << "Accuracy: " << (double)correct / patterns.size() * 100 << "%" << endl;
+
 	auto duration = chrono::duration_cast<chrono::milliseconds>(end - start);
 	cout << "Execution time: " << duration.count() << " ms" << endl;
-	out << "Execution time: " << duration.count() << " ms" << endl;
 
 	out.close();
+}
+
+int main()
+{
+	string references[] = { "1M", "10M", "100M", "1B" };
+	string patterns[] = { "10K", "100K", "1M", "10M" };
+	for (int i = 0; i < 4; i++) {
+		for (int j = 0; j < 4; j++) {
+			FMIndexBWT(references[i], patterns[j]);
+		}
+	}
 	return 0;
 }
