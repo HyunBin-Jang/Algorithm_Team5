@@ -19,9 +19,9 @@ def smith_waterman(seq1, seq2, match_score=2, mismatch_penalty=-1, gap_penalty=-
 
             score[i][j] = max(
                 0,
-                score[i - 1][j - 1] + match,  # 대각선 (match/mismatch)
-                score[i - 1][j] + gap_penalty,  # 위 (deletion)
-                score[i][j - 1] + gap_penalty   # 왼쪽 (insertion)
+                score[i - 1][j - 1] + match,
+                score[i - 1][j] + gap_penalty,
+                score[i][j - 1] + gap_penalty
             )
 
             if score[i][j] > max_score:
@@ -32,6 +32,7 @@ def smith_waterman(seq1, seq2, match_score=2, mismatch_penalty=-1, gap_penalty=-
 
 def seed_and_extend(reference, read, kmer_index, seed_len=10):
     L = len(read)
+    ref_len = len(reference)
     start_idx = L // 2 - seed_len // 2
     seed = read[start_idx:start_idx + seed_len]
     positions = kmer_index.get(seed, [])
@@ -40,7 +41,9 @@ def seed_and_extend(reference, read, kmer_index, seed_len=10):
     best_pos = -1
 
     for pos in positions:
-        window = reference[pos - start_idx : pos - start_idx  + len(read)]
+        win_start = max(0, pos - start_idx)
+        win_end = min(ref_len, win_start + len(read))
+        window = reference[win_start : win_end]
         score, _ = smith_waterman(read, window)
         if score > best_score:
             best_score = score
@@ -67,34 +70,35 @@ def evaluate_accuracy(true_positions, predicted_positions):
     correct = 0
     total = min(len(true_positions), len(predicted_positions))
     for i in range(total):
-        if true_positions[i] - predicted_positions[i]:
+        if true_positions[i] == predicted_positions[i]:
             correct += 1
     accuracy = (correct / total) * 100
     return accuracy, correct, total
 
-def load_reference(filename="reference_1M.txt"):
+def load_reference(filename="reference_10M.txt"):
     with open(filename, "r") as f:
         return f.read().strip()
 
-def load_reads(filename="mammoth_reads_10K.txt"):
+def load_reads(filename="mammoth_reads_100K.txt"):
     with open(filename, "r") as f:
         return [line.strip() for line in f.readlines()]
 
-def load_ground_truth(filename="ground_truth_10K.txt"):
+def load_ground_truth(filename="ground_truth_100K.txt"):
     with open(filename, "r") as f:
         return [int(line.strip()) for line in f.readlines()]
 
 # 1. 파일 로딩
-reference = load_reference("reference_1M.txt")
-reads = load_reads("mammoth_reads_10K.txt")
-true_positions = load_ground_truth("ground_truth_10K.txt")
+reference = load_reference("reference_100M.txt")
+reads = load_reads("mammoth_reads_1M.txt")
+true_positions = load_ground_truth("ground_truth_1M.txt")
 
 # 2. 매칭
 start_time = time.time()   # 매칭 시작 시간 기록
-k = 10
+k = 20
 kmer_index = build_kmer_index(reference, k)
 predicted_positions = []
-for i in range(1000):
+
+for i in range(10000):
     pred_pos, _ = seed_and_extend(reference, reads[i], kmer_index, seed_len=k)
     predicted_positions.append(pred_pos)
 end_time = time.time()  #매칭 종료 시간 기록
@@ -103,4 +107,4 @@ print(f"Total Matching Time : {elapsed_time:.2f} seconds")
 
 # 3. 정확도 평가
 accuracy, correct, total = evaluate_accuracy(true_positions, predicted_positions)
-print(f"\n Accuracy: {accuracy:.2f}% ({correct}/{total} matched within ±2bp)")
+print(f"\n Accuracy: {accuracy:.2f}% ({correct}/{total} matched)")
