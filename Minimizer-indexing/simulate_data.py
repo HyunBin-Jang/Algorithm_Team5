@@ -72,7 +72,7 @@ def run_simulation():
                 truth_filename=truth_filename,
                 read_len=read_len,
                 num_reads=num_reads,
-                mutation_rate=0.01
+                mutation_rate=0.02
             )
 
 if __name__ == "__main__":
