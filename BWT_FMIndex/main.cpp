@@ -254,12 +254,9 @@ void FMIndexBWT(const string referenceSize, const string patternSize) {
 
 int main()
 {
-	string references[] = { "1M", "10M", "100M" };
+	string references[] = { "1M", "10M", "100M", "1B"};
 	string patterns[] = { "10K", "100K", "1M", "10M" };
-	for (int i = 0; i < 3; i++) {
-		for (int j = 0; j < 4; j++) {
-			FMIndexBWT(references[i], patterns[j]);
-		}
-	}
+	for (int i = 0; i < 4; i++)
+		FMIndexBWT(references[i], patterns[i]);
 	return 0;
 }
