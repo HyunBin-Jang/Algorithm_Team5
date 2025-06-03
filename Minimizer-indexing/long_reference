@@ -1,0 +1,133 @@
+import os
+import time
+import mmap
+import sys
+
+def load_reference(filename="reference_1G.txt"):
+    f = open(filename, "r+b")
+    mm = mmap.mmap(f.fileno(), 0)
+    return mm
+
+def load_reads(filename="mammoth_reads_10M.txt"):
+    with open(filename, "r") as f:
+        return [line.strip() for line in f]
+
+def load_truth(filename="ground_truth_10M.txt"):
+    with open(filename, "r") as f:
+        return [int(line.strip()) for line in f]
+
+def build_minimizer_index(reference, k=20, w=8, max_occ=500):
+    index = {}
+    ref_len = len(reference)
+    num_kmers = ref_len - k + 1
+    for i in range(num_kmers - w + 1):
+        window_kmers = [reference[j : j + k].decode("ascii") for j in range(i, i + w)]
+        mn = min(window_kmers)
+        mn_pos = i + window_kmers.index(mn)
+        index.setdefault(mn, []).append(mn_pos)
+    filtered = {m: poses for m, poses in index.items() if len(poses) <= max_occ}
+    return filtered
+
+def minimizer_match(reference, index, read, k=20, w=8, max_mismatch=2, seed_min=2):
+    read_len = len(read)
+    read_kmers = [read[i : i + k] for i in range(read_len - k + 1)]
+    read_min_pairs = []
+    for i in range(len(read_kmers) - w + 1):
+        window = read_kmers[i : i + w]
+        mn = min(window)
+        mn_idx_in_window = window.index(mn)
+        read_pos = i + mn_idx_in_window
+        read_min_pairs.append((mn, read_pos))
+    delta_counts = {}
+    for mn, rpos in read_min_pairs:
+        if mn not in index:
+            continue
+        for refpos in index[mn]:
+            delta = refpos - rpos
+            delta_counts[delta] = delta_counts.get(delta, 0) + 1
+    candidates = [d for d, cnt in delta_counts.items() if cnt >= seed_min]
+    best_pos, best_mm = -1, max_mismatch + 1
+    for delta in candidates:
+        if delta < 0 or delta + read_len > len(reference):
+            continue
+        window_seq = reference[delta : delta + read_len].decode("ascii")
+        mismatches = sum(1 for a, b in zip(read, window_seq) if a != b)
+        if mismatches <= max_mismatch and mismatches < best_mm:
+            best_mm = mismatches
+            best_pos = delta
+    return best_pos, best_mm
+
+if __name__ == "__main__":
+    REF_FILE = "reference_1G.txt"
+    READS_FILE = "mammoth_reads_10M.txt"
+    TRUTH_FILE = "ground_truth_10M.txt"
+    K = 20
+    W = 8
+    MAX_OCC = 500
+    MAX_MM = 2
+    SEED_MIN = 2
+
+    overall_start = time.time()
+    f_ref = open(REF_FILE, "r+b")
+    mm_ref = mmap.mmap(f_ref.fileno(), 0)
+    ref_len = len(mm_ref)
+
+    with open(READS_FILE, "r") as rf:
+        first_line = rf.readline().strip()
+    read_len = len(first_line)
+
+    chunk_size = 50000000
+    overlap = read_len
+
+    correct = 0
+    total = 0
+    out_map = open("mapping_results.txt", "w")
+    out_map.write("read_id\ttrue_pos\tpred_pos\tmismatch\n")
+
+    num_chunks = (ref_len + chunk_size - 1) // chunk_size
+    for chunk_idx in range(num_chunks):
+        offset = chunk_idx * chunk_size
+        end_pos = offset + chunk_size + overlap
+        if end_pos > ref_len:
+            end_pos = ref_len
+        chunk_ref = mm_ref[offset:end_pos]
+
+        t0 = time.time()
+        index = build_minimizer_index(chunk_ref, k=K, w=W, max_occ=MAX_OCC)
+        t1 = time.time()
+        print(f"> Chunk {chunk_idx}: build index with {len(index)} keys in {t1 - t0:.2f} seconds")
+
+        t2 = time.time()
+        with open(READS_FILE, "r") as rf, open(TRUTH_FILE, "r") as tf:
+            for idx, (lr, lt) in enumerate(zip(rf, tf)):
+                read_seq = lr.strip()
+                true_pos = int(lt.strip())
+                if true_pos < offset or true_pos >= offset + chunk_size:
+                    continue
+                local_index = {}
+                for mn, poses in index.items():
+                    filtered_positions = [p - offset for p in poses if offset <= p < end_pos]
+                    if filtered_positions:
+                        local_index[mn] = filtered_positions
+                pred_pos, mm = minimizer_match(chunk_ref, local_index, read_seq, k=K, w=W, max_mismatch=MAX_MM, seed_min=SEED_MIN)
+                if pred_pos >= 0:
+                    pred_pos_global = pred_pos + offset
+                else:
+                    pred_pos_global = -1
+                if pred_pos_global == true_pos:
+                    correct += 1
+                total += 1
+                out_map.write(f"read_{idx}\t{true_pos}\t{pred_pos_global}\t{mm}\n")
+        t3 = time.time()
+        print(f"> Chunk {chunk_idx}: mapping in {t3 - t2:.2f} seconds")
+
+        del index
+
+    out_map.close()
+    mm_ref.close()
+    f_ref.close()
+
+    accuracy = (correct / total * 100) if total > 0 else 0.0
+    overall_end = time.time()
+    print(f"\n>> Reconstruction accuracy (≤{MAX_MM} mismatches): {accuracy:.2f}%")
+    print(f">> Total elapsed time: {overall_end - overall_start:.2f} seconds")
