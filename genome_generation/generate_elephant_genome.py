@@ -11,12 +11,12 @@ def generate_artificial_elephant_genome(length=3000000000):
     genome = ''.join(random.choices(bases, k=length))
     return genome
 
-def save_reference_as_txt(sequence, filename="reference_10K.txt"):
+def save_reference_as_txt(sequence, filename="3_3_reference_100M.txt"):
     with open(filename, "w") as f:
         f.write(sequence)
 
 
 # 100만 bp짜리 유전체 생성
-genome_seq = generate_artificial_elephant_genome(length=10000)
+genome_seq = generate_artificial_elephant_genome(length=100000000)
 
 save_reference_as_txt(genome_seq)
