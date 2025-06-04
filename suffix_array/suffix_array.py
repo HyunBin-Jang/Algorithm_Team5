@@ -162,14 +162,14 @@ def main():
     start_time = time.time()
 
     # 1) 파일 로드
-    with open("../genome_generation/reference_100K.txt", "r") as f_ref:
+    with open("../genome_generation/reference_1000000.txt", "r") as f_ref:
         reference = f_ref.read().strip()
 
-    with open("../genome_generation/mammoth_reads_1K.txt", "r") as f_reads:
+    with open("../genome_generation/mammoth_reads_10000.txt", "r") as f_reads:
         reads = [line.strip() for line in f_reads if line.strip()]
 
     # 2) ground truth 로드 (정확도 측정용)
-    with open("../genome_generation/ground_truth_1K.txt", "r") as f_gt:
+    with open("../genome_generation/ground_truth_10000.txt", "r") as f_gt:
         ground_truth = [int(line.strip()) for line in f_gt if line.strip()]
 
     # 3) 모든 read 정위치 탐색 (진행 상황 출력 포함)
