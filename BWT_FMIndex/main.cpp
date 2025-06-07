@@ -8,8 +8,6 @@
 
 using namespace std;
 
-
-// 접미사 배열 생성
 vector<int> buildSuffixArray(const string& s) {
 	int n = s.length();
 	vector<int> sa(n); // 접미사의 시작 인덱스를 저장하는 배열
@@ -69,10 +67,7 @@ private:
 public:
 	FMIndex(const string& ref) { // ref : reference sequence
 		sa = buildSuffixArray(ref + '$');
-		//for (int i = 0; i < sa.size(); i++)
-		//	cout << "Suffix Array[" << i << "]: " << sa[i] << endl; // 디버깅용 출력
 		bwt = buildBWT(ref + '$', sa);
-		//cout << "BWT: " << bwt << endl; // 디버깅용 출력
 
 		map<char, int> char_count;
 		for (char c : bwt) char_count[c]++;
@@ -81,8 +76,6 @@ public:
 			first[p.first] = sum;
 			sum += p.second;
 		}
-		//for (auto& p : first)
-		//	cout << "First[" << p.first << "]: " << p.second << endl; // 디버깅용 출력
 
 		occ.resize(bwt.length());
 		map<char, int> running_count;
@@ -90,13 +83,6 @@ public:
 			running_count[bwt[i]]++;
 			occ[i] = running_count;
 		}
-		//for (size_t i = 0; i < occ.size(); i++) {
-		//	cout << "occ[" << i << "]: ";
-		//	for (const auto& p : occ[i]) {
-		//		cout << p.first << ":" << p.second << " ";
-		//	}
-		//	cout << endl; // 디버깅용 출력
-		//}
 	}
 
 	// 정확한 매칭을 위한 범위 계산. 패턴의 한 문자를 처리하여 BWT에서 해당 문자의 범위를 반환
@@ -199,15 +185,12 @@ string formatDuration(chrono::milliseconds ms) {
 	return result;
 }
 
-void FMIndexBWT(const string referenceSize, const string patternSize) {
-	cout << "===============================" << endl;
-	cout << "Reference Size: " << referenceSize << ", Number of patterns : " << patternSize << endl;
+void FMIndexBWT(const string ref, const vector<string> patterns, const vector<int> ground_truth, const int readLength) {
+	cout << "============================================" << endl;
+	cout << "reference length: " << ref.length() << ", patterns length: " << readLength << ", number of patterns: " << patterns.size() << endl;
 	auto start = chrono::high_resolution_clock::now();
 
 	// 파일 읽기
-	string ref = readReference("reference_" + referenceSize + ".txt");
-	vector<string> patterns = readPatterns("short_reads/mammoth_reads_" + referenceSize + "_" + patternSize + ".txt");
-	vector<int> ground_truth = readGroundTruth("ground_truth/ground_truth_" + referenceSize + "_" + patternSize + ".txt");
 
 	// FM-Index 생성
 	FMIndex fm(ref);
@@ -215,18 +198,14 @@ void FMIndexBWT(const string referenceSize, const string patternSize) {
 	// 최대 mismatch 허용 수
 	int k = 2; // 필요시 조정 가능
 
-	// 결과 출력 파일
-	/*vector<string> outputs;
-	ofstream out("results_" + referenceSize + "_" + patternSize + ".txt");*/
-
 	// 패턴 검색 및 검증
 	int correct = 0;
-	for (size_t i = 0; i < patterns.size(); i++) {
-		vector<int> positions = fm.searchWithMismatch(patterns[i], k);
+	size_t total = patterns.size();
+	size_t nextProgress = total / 10;
+	size_t progressCheck = nextProgress;
 
-		/*for (int i = 0; i < positions.size(); i++)
-			cout << positions[i] << " ";
-		cout << endl;*/
+	for (size_t i = 0; i < total; i++) {
+		vector<int> positions = fm.searchWithMismatch(patterns[i], k);
 
 		bool found = false;
 		for (int pos : positions) {
@@ -236,27 +215,54 @@ void FMIndexBWT(const string referenceSize, const string patternSize) {
 			}
 		}
 		if (found) correct++;
-		//outputs.push_back(("Pattern " + to_string(i + 1) + ": " + (found ? "Match at " + to_string(ground_truth[i]) : "No match")));
+		if (i + 1 >= progressCheck) {
+			cout << (progressCheck * 100 / total) << "% completed..." << endl;
+			progressCheck += nextProgress;
+		}
 	}
 	auto end = chrono::high_resolution_clock::now();
 
-	/*for (const string& output : outputs) {
-		out << output << endl;
-	}*/
 	cout << "Accuracy: " << (double)correct / patterns.size() * 100 << "%" << endl;
 
 	auto duration = chrono::duration_cast<chrono::milliseconds>(end - start);
 	string executionTime = formatDuration(duration);
 	cout << "Execution time: " << executionTime << endl;
+}
 
-	//out.close();
+void first() {
+	string sizes[] = { "10K", "100K", "1M" };
+	string ref = readReference("1/1_reference_10M.txt");
+	for (int i = 0; i < 3; i++) {
+		vector<string> patterns = readPatterns("1/1_" + to_string(i + 1) + "_mammoth_reads_" + sizes[i] + ".txt");
+		vector<int> ground_truth = readGroundTruth("1/1_" + to_string(i + 1) + "_ground_truth_" + sizes[i] + ".txt");
+		FMIndexBWT(ref, patterns, ground_truth, 100);
+	}
+}
+
+void second() {
+	int sizes[] = { 40, 70, 100 };
+	string ref = readReference("2/2_reference_10M.txt");
+	for (int i = 0; i < 3; i++) {
+		vector<string> patterns = readPatterns("2/2_" + to_string(i + 1) + "_mammoth_reads_100K.txt");
+		vector<int> ground_truth = readGroundTruth("2/2_" + to_string(i + 1) + "_ground_truth_100K.txt");
+		FMIndexBWT(ref, patterns, ground_truth, sizes[i]);
+	}
+}
+
+void third() {
+	string sizes[] = { "1M", "10M", "100M" };
+	for (int i = 0; i < 3; i++) {
+		string ref = readReference("3/3_" + to_string(i + 1) + "_reference_" + sizes[i] + ".txt");
+		vector<string> patterns = readPatterns("3/3_" + to_string(i + 1) + "_mammoth_reads_100K.txt");
+		vector<int> ground_truth = readGroundTruth("3/3_" + to_string(i + 1) + "_ground_truth_100K.txt");
+		FMIndexBWT(ref, patterns, ground_truth, 100);
+	}
 }
 
 int main()
 {
-	string references[] = { "1M", "10M", "100M", "1B"};
-	string patterns[] = { "10K", "100K", "1M", "10M" };
-	for (int i = 0; i < 4; i++)
-		FMIndexBWT(references[i], patterns[i]);
+	first();
+	second();
+	third();
 	return 0;
 }
