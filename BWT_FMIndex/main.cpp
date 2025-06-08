@@ -77,11 +77,12 @@ public:
 			sum += p.second;
 		}
 
+		// occ 배열 구성: BWT의 각 위치에서 각 문자의 누적 개수 저장
 		occ.resize(bwt.length());
-		map<char, int> running_count;
+		map<char, int> running_count; // 각 문자의 현재까지 누적 개수
 		for (size_t i = 0; i < bwt.length(); i++) {
-			running_count[bwt[i]]++;
-			occ[i] = running_count;
+			running_count[bwt[i]]++; // 현재 위치의 문자 개수 증가
+			occ[i] = running_count; // occ[i][c] = BWT[0:i]에서 문자 c의 누적 개수
 		}
 	}
 
