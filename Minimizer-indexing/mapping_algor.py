@@ -1,5 +1,5 @@
 import os
-
+import time
 
 def load_reference_to_string(filename):
     with open(filename, 'r') as f:
@@ -11,7 +11,6 @@ def load_reads_from_file(filename):
 
 def load_truth_positions(filename):
     return [int(line.strip()) for line in open(filename, 'r')]
-
 
 def build_minimizer_index(reference, k=20, w=8, max_occ=500):
     index = {}
@@ -25,11 +24,9 @@ def build_minimizer_index(reference, k=20, w=8, max_occ=500):
     filtered = {m: poses for m, poses in index.items() if len(poses) <= max_occ}
     return filtered
 
-
 def minimizer_match(
-    reference,index,read,
-    k=20,w=8,
-    max_mismatch=2,seed_min=2
+    reference, index, read,
+    k=20, w=8, max_mismatch=2, seed_min=2
 ):
     read_kmers = [read[i:i + k] for i in range(len(read) - k + 1)]
     read_min_pairs = []
@@ -62,12 +59,8 @@ def minimizer_match(
 
     return best_pos, best_mm
 
-
 def reconstruct_genome_with_reads(
-    reference,
-    reads,
-    truth_positions,
-    index,
+    reference, reads, truth_positions, index,
     k=20, w=8, max_mismatch=2, seed_min=2
 ):
     reconstructed = list(reference)
@@ -80,7 +73,6 @@ def reconstruct_genome_with_reads(
             reference, index, read,
             k=k, w=w, max_mismatch=max_mismatch, seed_min=seed_min
         )
-        # mismatch 허용 범위에서 복원
         if pred_pos == true_pos and mm <= max_mismatch:
             for j, base in enumerate(read):
                 reconstructed[pred_pos + j] = base
@@ -88,16 +80,12 @@ def reconstruct_genome_with_reads(
 
     return ''.join(reconstructed), matched_reads, total_reads
 
-
 def evaluate_reconstruction(reference, reconstructed):
     assert len(reference) == len(reconstructed)
-    L = len(reference)
     matches = sum(1 for a, b in zip(reference, reconstructed) if a == b)
-    return matches / L
-
+    return matches / len(reference)
 
 def run_mapping_and_evaluation():
-
     K = 20
     W = 8
     MAX_OCC = 500
@@ -105,10 +93,9 @@ def run_mapping_and_evaluation():
     SEED_MIN = 2
 
     pairs = [
-        ("reference_1M.txt",  "mammoth_reads_100K.txt",  "ground_truth_100K.txt"),
-        ("reference_10M.txt", "mammoth_reads_1M.txt",   "ground_truth_1M.txt"),
-        ("reference_100M.txt","mammoth_reads_10M.txt",  "ground_truth_10M.txt"),
-        #("reference_1T.txt",  "mammoth_reads_100M.txt", "ground_truth_100M.txt"),
+        ("1_reference_10M.txt",   "1_1_mammoth_reads_10K.txt",  "1_1_ground_truth_10K.txt"),
+        ("1_reference_10M.txt",  "1_2_mammoth_reads_100K.txt",   "1_2_ground_truth_100K.txt"),
+        ("1_reference_10M.txt", "1_3_mammoth_reads_1M.txt",  "1_3_ground_truth_1M.txt"),
     ]
 
     for ref_file, read_file, truth_file in pairs:
@@ -117,26 +104,44 @@ def run_mapping_and_evaluation():
             continue
 
         print(f"\n=== Processing {ref_file} & {read_file} ===")
+        start_time = time.time()
+
+        # 1) 레퍼런스 로딩
         reference = load_reference_to_string(ref_file)
+        # 2) Reads & Ground truth 로딩
         reads = load_reads_from_file(read_file)
         truth_positions = load_truth_positions(truth_file)
 
+        # 3) Minimizer 인덱스 생성
         print("> Building minimizer index ...")
+        idx_start = time.time()
         index = build_minimizer_index(reference, k=K, w=W, max_occ=MAX_OCC)
+        idx_elapsed = time.time() - idx_start
         print(f"  - Unique minimizers after filtering: {len(index)}")
+        print(f"  - (Index build time: {idx_elapsed:.2f} sec)")
 
+        # 4) 매핑 및 재구성
         print("> Performing mapping & reconstruction ...")
+        recon_start = time.time()
         reconstructed, matched_reads, total_reads = reconstruct_genome_with_reads(
             reference, reads, truth_positions, index,
             k=K, w=W, max_mismatch=MAX_MM, seed_min=SEED_MIN
         )
+        recon_elapsed = time.time() - recon_start
 
+        # 5) 정확도 계산
         read_level_acc = matched_reads / total_reads * 100
         base_level_acc = evaluate_reconstruction(reference, reconstructed) * 100
 
-        print(f"  * Read-level mapping accuracy (exact 위치 매칭 & ≤{MAX_MM} mismatch): "
+        # 6) 결과 출력
+        print(f"  * Read-level mapping accuracy (≦{MAX_MM} mismatch): "
               f"{matched_reads}/{total_reads} = {read_level_acc:.2f}%")
         print(f"  * Base-level reconstruction accuracy: {base_level_acc:.2f}%")
+        print(f"  * (Mapping & reconstruction time: {recon_elapsed:.2f} sec)")
+
+        total_elapsed = time.time() - start_time
+        print(f"  => Total elapsed for this pair: {total_elapsed:.2f} sec "
+              f"({total_elapsed/60:.2f} min)\n")
 
 if __name__ == "__main__":
     run_mapping_and_evaluation()
