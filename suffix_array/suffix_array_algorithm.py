@@ -1,3 +1,6 @@
+# suffix_array 알고리즘
+# 2021111930 전유민
+
 import time
 import functools # 비교 함수를 정렬에 사용할 수 있게 변환하는 데 사용 (cmp_to_key)
 
